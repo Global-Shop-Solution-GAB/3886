@@ -1,0 +1,241 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+'GS Certified By BCC
+'8/19/2015
+V.Local.sError.Declare(String)
+
+'CRM Populate hook
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+'Change Script 4 button to say "Pick List"
+F.Intrinsic.Control.Case(42900)
+	V.Passed.CRM-cmdGAB-3.Set("Pick List")
+'CRM Script 4 button hook
+F.Intrinsic.Control.Case(42921)
+	F.Intrinsic.Control.CallSub(Crm)
+'ORD055A Populate Hook
+F.Intrinsic.Control.Case(38601)
+	F.Intrinsic.Control.If(V.Passed.CALLING-PGM,=,"SYS050")
+		V.Passed.777777.Set(1)
+	F.Intrinsic.Control.EndIf
+'ORD055B Populate Hook
+F.Intrinsic.Control.Case(38621)
+	F.Intrinsic.Control.If(V.Passed.CALLING-PGM,=,"SYS050")
+		F.Intrinsic.Control.CallSub(Populateord055b)
+	F.Intrinsic.Control.EndIf
+'Shipment Picklist Beginning Order Browser hook
+F.Intrinsic.Control.Case(38622)
+	F.Intrinsic.Control.CallSub(Picklistorderbrowser)
+'Shipment Picklist Ending Order Browser Hook
+F.Intrinsic.Control.Case(38623)
+	F.Intrinsic.Control.CallSub(Picklistorderbrowser)
+'Shipment Picklist Ok Button On First Form
+'Deletes file with customer name when not ran through CRM.
+F.Intrinsic.Control.Case(38602)
+	F.Intrinsic.Control.CallSub(Clearcrm)
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3886_Shipment_Picklist_From_CRM_CERT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.CRM.Start
+F.Intrinsic.Control.SetErrorHandler("CRM_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'If the customer is selected on CRM, pass the customer number and call shipment picklist
+F.Intrinsic.Control.If(Variable.Passed.DATA-CRM-CompID,<>,"")
+	V.Local.sTempFile.Declare(String)
+	V.Local.iFile.Declare(Long)
+	F.Intrinsic.String.Build("{0}\crmpicklist{1}.dat",V.Caller.TempDir,V.Caller.Terminal,V.Local.sTempFile)
+	F.Intrinsic.File.GetHandle(V.Local.iFile)
+	F.Intrinsic.File.OpenForWrite(V.Local.sTempFile,V.Local.iFile)
+	F.Intrinsic.File.WriteLine(V.Local.iFile,Variable.Passed.DATA-CRM-CompID)
+	F.Intrinsic.File.CloseFile(V.Local.iFile)
+	F.Global.General.CallWrapperSync(910201,"*!*ZDR*!*!*!*!*ZDR*!*!*!Y!*!*!*ZDR*!*!*!*!*ZDR*!*!*!Y")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CRM_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3886_Shipment_Picklist_From_CRM_CERT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CRM.End
+
+Program.Sub.PicklistOrderBrowser.Start
+F.Intrinsic.Control.SetErrorHandler("PicklistOrderBrowser_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+'Override the standard browser and show only order numbers for the customer selected in CRM.
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+V.Local.sCustomer.Declare(String)
+V.Local.bFileExists.Declare(Boolean)
+V.Local.sTitle.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sTitles.Declare(String)
+V.Local.iWidths.Declare(Long)
+V.Local.sFormat.Declare(String)
+V.Local.sAlign.Declare(String)
+V.Local.sRet.Declare(String)
+
+'Open the Database Connection
+F.ODBC.Connection!Con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.String.Build("{0}\crmpicklist{1}.dat",V.Caller.TempDir,V.Caller.Terminal,V.Local.sTempFile)
+F.Intrinsic.File.Exists(V.Local.sTempFile,V.Local.bFileExists)
+
+F.Intrinsic.Control.If(V.Local.bFileExists,=,True)
+	F.Intrinsic.File.GetHandle(V.Local.iFile)
+	F.Intrinsic.File.OpenForRead(V.Local.sTempFile,V.Local.iFile)
+	F.Intrinsic.File.ReadFile(V.Local.iFile,V.Local.sCustomer)
+	F.Intrinsic.String.Replace(V.Local.sCustomer,V.Ambient.NewLine,"",V.Local.sCustomer)
+	F.Intrinsic.String.RPad(V.Local.sCustomer," ",6,V.Local.sCustomer)
+	F.Intrinsic.File.CloseFile(V.Local.iFile)
+	
+	V.Passed.777777.Set(1)
+	
+	F.Intrinsic.String.Build("Sales Orders for {0}",V.Local.sCustomer,V.Local.sTitle)
+	
+	F.Intrinsic.String.Split("Order #*!*Date Due*!*Purchase Order*!*Address1*!*City*!*State*!*Zip","*!*",V.Local.sTitles)
+	F.Intrinsic.String.Split("1000*!*1000*!*2000*!*2500*!*1500*!*500*!*1000","*!*",V.Local.iWidths)
+	F.Intrinsic.String.Split("*!**!**!**!**!**!*","*!*",V.Local.sFormat)
+	F.Intrinsic.String.Split("0*!*0*!*0*!*0*!*0*!*0*!*0","*!*",V.Local.sAlign)
+	
+	V.Local.sSql.Set("Select T1.ORDER_NO, T1.DATE_DUE, T1.CUSTOMER_PO,")
+	F.Intrinsic.String.Build("{0} T2.ADDRESS_1_SHIP, T2.CITY_SHIP, T2.STATE_SHIP, T2.CODE_ZIP_SHIP",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} From V_ORDER_HEADER T1",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} Left Outer Join V_ORDER_SHIP_TO T2",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} on T2.ORDER_NO = T1.ORDER_NO",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} and T2.ORDER_SHIP_ID = T1.SHIP_ID",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} Where T1.CUSTOMER = '{1}'",V.Local.sSql,V.Local.sCustomer,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} and T1.ORDER_SHIP_ID = '' and T2.ORDER_SHIP_ID = ''",V.Local.sSql,V.Local.sSql)
+	F.Intrinsic.String.Build("{0} Order By T1.ORDER_NO",V.Local.sSql,V.Local.sSql)
+	
+	F.Intrinsic.UI.Browser(V.Local.sTitle,"Con",V.Local.sSql,V.Local.sTitles,V.Local.iWidths,10700,5000,V.Local.sFormat,V.Local.sAlign,V.Local.sRet)
+	
+	F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+		V.Local.sColumns.Declare(String)
+		F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sColumns)
+
+		'Shipment Picklist Beginning Order Browser hook
+		F.Intrinsic.Control.If(V.Caller.Hook,=,38622)
+			V.Passed.000031.Set(V.Local.sColumns(0))
+		F.Intrinsic.Control.EndIf
+
+		'Shipment Picklist Ending Order Browser Hook
+		F.Intrinsic.Control.If(V.Caller.Hook,=,38623)
+			V.Passed.000032.Set(V.Local.sColumns(0))
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("PicklistOrderBrowser_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3886_Shipment_Picklist_From_CRM_CERT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!Con.Close
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.PicklistOrderBrowser.End
+
+Program.Sub.PopulateORD055B.Start
+F.Intrinsic.Control.SetErrorHandler("PopulateORD055B_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'When ORD055B is populated, open the crmpicklistttt.dat file to determine
+'what customer should be on the screen
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+V.Local.sCustomer.Declare(String)
+F.Intrinsic.String.Build("{0}\crmpicklist{1}.dat",V.Caller.TempDir,V.Caller.Terminal,V.Local.sTempFile)
+F.Intrinsic.File.GetHandle(V.Local.iFile)
+F.Intrinsic.File.OpenForRead(V.Local.sTempFile,V.Local.iFile)
+F.Intrinsic.File.ReadFile(V.Local.iFile,V.Local.sCustomer)
+F.Intrinsic.String.Replace(V.Local.sCustomer,V.Ambient.NewLine,"",V.Local.sCustomer)
+V.Passed.000001.Set("N")
+V.Passed.000041.Set(V.Local.sCustomer)
+V.Passed.000044.Set(V.Local.sCustomer)
+F.Intrinsic.File.CloseFile(V.Local.iFile)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("PopulateORD055B_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3886_Shipment_Picklist_From_CRM_CERT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.PopulateORD055B.End
+
+Program.Sub.ClearCRM.Start
+F.Intrinsic.Control.SetErrorHandler("ClearCRM_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'If the customer is selected on CRM, pass the customer number and call shipment picklist
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+V.Local.bExists.Declare(Boolean)
+
+F.Intrinsic.String.Build("{0}\crmpicklist{1}.dat",V.Caller.TempDir,V.Caller.Terminal,V.Local.sTempFile)
+F.Intrinsic.File.Exists(V.Local.sTempFile,V.Local.bExists)
+
+F.Intrinsic.Control.If(V.Local.bExists,=,True)
+	F.Intrinsic.File.DeleteFile(V.Local.sTempFile)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("ClearCRM_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3886_Shipment_Picklist_From_CRM_CERT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.ClearCRM.End
+
+Program.Sub.Comments.Start
+${$0$}$ATG_SHIPMENT-PICKLIST-FROM-CRM$}$LML$}$6/11/2012
+${$1$}$$}$$}$3$}$38623$}$Ending Order Number Browser (ORD055)$}$6/11/2012 9:52:01 PM$}$
+${$1$}$$}$$}$2$}$38622$}$Beginning Order Number Browser (ORD055)$}$6/11/2012 9:51:37 PM$}$
+${$1$}$$}$$}$1$}$38600$}$Entry hook (ORD055)$}$6/11/2012 9:50:27 PM$}$
+${$1$}$$}$$}$0$}$30621$}$Script 4 Hook (CRM)$}$6/11/2012 9:47:15 PM$}$
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Call shipment picklist from CRM if a customer is selected. The order number browsers on the shipment pick list screen will pull list of orders that are only for customer selected on CRM.
+Program.Sub.Comments.End
+
